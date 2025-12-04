@@ -1,9 +1,12 @@
 // src/pages/Home.tsx
 import { Link } from "react-router-dom";
 import { PRODUCTS as LOCAL_PRODUCTS } from "../data/products";
-import type { Product } from "../data/products";
+import type { Product as LocalProductType } from "../data/products";
 import { useEffect, useMemo, useState } from "react";
 import heroImg from "../assets/hero.jpg";
+
+/** Extend local Product type with optional slug so TS won't complain here */
+type Product = LocalProductType & { slug?: string; category?: string };
 
 /** Firestore fetch (same behavior — throws if not configured) */
 async function fetchProductsFromFirestore(limitCount = 200): Promise<Product[]> {
@@ -48,6 +51,7 @@ async function fetchProductsFromFirestore(limitCount = 200): Promise<Product[]> 
         regularPrice: data.regularPrice ? Number(data.regularPrice) : undefined,
         images: Array.isArray(data.images) ? data.images : data.images ? [data.images] : [],
         category: data.category,
+        slug: data.slug ?? undefined,
       } as Product;
     });
   } catch (err) {
@@ -69,7 +73,7 @@ export default function Home() {
   const [category, setCategory] = useState<string | "all">("all");
   const [showFilterMobile, setShowFilterMobile] = useState(false);
 
-  const [products, setProducts] = useState<Product[]>(LOCAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(LOCAL_PRODUCTS as Product[]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,15 +87,15 @@ export default function Home() {
         if (!mounted) return;
         const byId = new Map<string, Product>();
         arr.forEach((p) => byId.set(p.id, p));
-        LOCAL_PRODUCTS.forEach((p) => {
-          if (!byId.has(p.id)) byId.set(p.id, p);
+        LOCAL_PRODUCTS.forEach((p: any) => {
+          if (!byId.has(p.id)) byId.set(p.id, { ...(p as any) });
         });
         setProducts(Array.from(byId.values()));
       })
       .catch((err) => {
         console.warn("Firestore products unavailable — falling back to local", err);
         if (mounted) {
-          setProducts(LOCAL_PRODUCTS);
+          setProducts(LOCAL_PRODUCTS as Product[]);
           setError("ফায়ারবেস পাওয়া যায়নি — লোকাল পণ্য দেখানো হচ্ছে।");
         }
       })
@@ -107,7 +111,7 @@ export default function Home() {
   const categories = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
-      if ((p as any).category) set.add(String((p as any).category));
+      if (p.category) set.add(String(p.category));
     });
     return ["all", ...Array.from(set)];
   }, [products]);
@@ -115,7 +119,7 @@ export default function Home() {
   const filtered = useMemo(() => {
     let list = products.slice();
 
-    if (category !== "all") list = list.filter((p) => String((p as any).category) === category);
+    if (category !== "all") list = list.filter((p) => String(p.category) === category);
 
     if (query.trim()) {
       const s = query.trim().toLowerCase();
@@ -294,8 +298,8 @@ export default function Home() {
           <>
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {filtered.map((p) => (
-                <article key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden transition hover:shadow-md">
-                  <Link to={`/product/${p.id}`} state={{ product: p }} className="block">
+                <article key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden transition hover:shadow-md group">
+                  <Link to={`/product/${p.slug ?? p.id}`} state={{ product: p }} className="block">
                     <div className="relative">
                       <div className="w-full h-44 sm:h-40 md:h-44 bg-gray-100 overflow-hidden">
                         <img
@@ -317,7 +321,7 @@ export default function Home() {
                       <div className="mt-3 flex items-center justify-between">
                         <div className="text-xs text-gray-500">{p.regularPrice ? <span className="line-through">৳ {Number(p.regularPrice).toLocaleString()}</span> : null}</div>
                         <div className="flex gap-2">
-                          <Link to={`/product/${p.id}`} state={{ product: p }} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg">View</Link>
+                          <Link to={`/product/${p.slug ?? p.id}`} state={{ product: p }} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg">View</Link>
                           <button className="text-xs px-3 py-1 border rounded-lg">Wishlist</button>
                         </div>
                       </div>

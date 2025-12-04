@@ -15,7 +15,6 @@ import Orders from "./pages/admin/Orders"
 import AddProduct from "./pages/admin/AddProduct"
 import Products from "./pages/admin/Products"
 
-
 export default function App() {
   const location = useLocation()
 
@@ -40,8 +39,9 @@ export default function App() {
         <Routes>
           {/* public routes */}
           <Route path="/" element={<Home />} />
-          <Route path="/product/:id" element={<ProductPage />} />
-          <Route path="all-products" element={<AllProducts />} />
+          {/* slugOrId supports both pretty-slug and raw firestore id */}
+          <Route path="/product/:slugOrId" element={<ProductPage />} />
+          <Route path="/all-products" element={<AllProducts />} />
 
           {/* admin routes */}
           <Route path="/admin" element={<AdminLayout />}>
@@ -50,7 +50,6 @@ export default function App() {
             <Route path="orders" element={<Orders />} />
             <Route path="add-product" element={<AddProduct />} />
             <Route path="products" element={<Products />} />
-            
           </Route>
 
           {/* fallback */}

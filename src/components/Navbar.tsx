@@ -9,9 +9,9 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-blue-600 text-white rounded flex items-center justify-center font-bold">bdz</div>
+              <div className="w-10 h-10 bg-blue-600 text-white rounded flex items-center justify-center font-bold">BF</div>
               <div className="hidden md:block">
-                <div className="font-semibold">bdz-ecommerce</div>
+                <div className="font-semibold">Bongo Farmers</div>
                 <div className="text-xs text-gray-500">Simple store</div>
               </div>
             </Link>

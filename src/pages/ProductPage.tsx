@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation, Link } from "react-router-dom";
 import { PRODUCTS } from "../data/products";
 import OrderModal from "../components/OrderModal";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
 type Product = {
@@ -14,11 +14,13 @@ type Product = {
   regularPrice?: number | null;
   images: string[];
   category?: string;
+  slug?: string;
   createdAt?: any;
 };
 
 export default function ProductPage() {
-  const { id } = useParams<{ id: string }>();
+  // note: route param is slugOrId (supports slug or raw firestore id)
+  const { slugOrId } = useParams<{ slugOrId?: string }>();
   const location = useLocation();
   const stateProduct = (location.state as any)?.product as Product | undefined;
 
@@ -43,6 +45,7 @@ export default function ProductPage() {
     let mounted = true;
 
     async function fetchIfNeeded() {
+      const id = slugOrId;
       if (!id) {
         if (mounted) {
           setError("Invalid product id");
@@ -51,14 +54,14 @@ export default function ProductPage() {
         return;
       }
 
-      // if already in state (from nav) skip fetching
+      // If product already set from navigation state, do nothing
       if (product) {
         setLoading(false);
         return;
       }
 
-      // try local PRODUCTS (match id or slug)
-      const local = PRODUCTS.find((p) => p.id === id);
+      // 1) try local PRODUCTS (match by id or slug)
+      const local = PRODUCTS.find((p: any) => p.id === id || p.slug === id);
       if (local) {
         if (mounted) {
           setProduct(local);
@@ -67,34 +70,59 @@ export default function ProductPage() {
         return;
       }
 
-      // fallback: fetch from Firestore
+      // 2) try Firestore doc by id
       setLoading(true);
       try {
         const dref = doc(db, "products", id);
         const snap = await getDoc(dref);
 
-        if (!snap.exists()) {
+        if (snap.exists()) {
+          const data = snap.data() as any;
+          const p: Product = {
+            id: snap.id,
+            title: data.title || "",
+            description: data.description || "",
+            price: Number(data.price || 0),
+            regularPrice: data.regularPrice != null ? Number(data.regularPrice) : null,
+            images: Array.isArray(data.images) ? data.images : data.images ? [data.images] : [],
+            category: data.category,
+            slug: data.slug,
+            createdAt: data.createdAt,
+          };
           if (mounted) {
-            setError("Product not found");
+            setProduct(p);
             setLoading(false);
           }
           return;
         }
 
-        const data = snap.data() as any;
-        const p: Product = {
-          id: snap.id,
-          title: data.title || "",
-          description: data.description || "",
-          price: Number(data.price || 0),
-          regularPrice: data.regularPrice != null ? Number(data.regularPrice) : null,
-          images: Array.isArray(data.images) ? data.images : data.images ? [data.images] : [],
-          category: data.category,
-          createdAt: data.createdAt,
-        };
+        // 3) fallback: query by slug field
+        const q = query(collection(db, "products"), where("slug", "==", id), limit(1));
+        const snap2 = await getDocs(q);
+        if (!snap2.empty) {
+          const d = snap2.docs[0];
+          const data = d.data() as any;
+          const p: Product = {
+            id: d.id,
+            title: data.title || "",
+            description: data.description || "",
+            price: Number(data.price || 0),
+            regularPrice: data.regularPrice != null ? Number(data.regularPrice) : null,
+            images: Array.isArray(data.images) ? data.images : data.images ? [data.images] : [],
+            category: data.category,
+            slug: data.slug,
+            createdAt: data.createdAt,
+          };
+          if (mounted) {
+            setProduct(p);
+            setLoading(false);
+          }
+          return;
+        }
 
+        // nothing found
         if (mounted) {
-          setProduct(p);
+          setError("Product not found");
           setLoading(false);
         }
       } catch (err) {
@@ -110,8 +138,8 @@ export default function ProductPage() {
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    // include slugOrId so effect runs when param changes
+  }, [slugOrId, product]);
 
   if (loading) {
     return (
@@ -161,28 +189,28 @@ export default function ProductPage() {
   const priceDisplay = (n: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
 
   // small sticky buy bar for mobile
-  const MobileBuyBar = () => (
-    <div className="fixed bottom-4 left-0 right-0 z-50 px-4 sm:hidden">
-      <div className="max-w-screen-xl mx-auto">
-        <div className="bg-white rounded-full shadow-lg flex items-center justify-between px-4 py-3">
-          <div>
-            <div className="text-xs text-gray-500">Total</div>
-            <div className="text-base font-semibold text-indigo-700">৳ {priceDisplay(product.price)}</div>
-          </div>
-          <div>
-            <button
-              onClick={() => setShowOrder(true)}
-              className="bg-indigo-600 px-4 py-2 rounded-full text-white text-sm font-medium shadow"
-            >
-              🛒 Order now
-            </button>
+  const MobileBuyBar = () =>
+    typeof window !== "undefined" ? (
+      <div className="fixed bottom-4 left-0 right-0 z-50 px-4 sm:hidden">
+        <div className="max-w-screen-xl mx-auto">
+          <div className="bg-white rounded-full shadow-lg flex items-center justify-between px-4 py-3">
+            <div>
+              <div className="text-xs text-gray-500">Total</div>
+              <div className="text-base font-semibold text-indigo-700">৳ {priceDisplay(product.price)}</div>
+            </div>
+            <div>
+              <button
+                onClick={() => setShowOrder(true)}
+                className="bg-indigo-600 px-4 py-2 rounded-full text-white text-sm font-medium shadow"
+              >
+                🛒 Order now
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    ) : null;
 
-  // layout: gallery left, info right — but info order is Title → Price → Buy → Description
   return (
     <div className="max-w-screen-xl mx-auto px-4 py-8">
       <nav className="text-xs text-gray-500 mb-4">
@@ -214,9 +242,7 @@ export default function ProductPage() {
                 <button
                   key={i}
                   onClick={() => setSelectedImage(i)}
-                  className={`relative rounded-md overflow-hidden border ${
-                    selectedImage === i ? "ring-2 ring-indigo-500 border-transparent" : "border-gray-200"
-                  }`}
+                  className={`relative rounded-md overflow-hidden border ${selectedImage === i ? "ring-2 ring-indigo-500 border-transparent" : "border-gray-200"}`}
                   aria-label={`Show image ${i + 1}`}
                 >
                   <img src={src} alt={`${product.title} ${i + 1}`} className="w-full h-16 object-cover" />
@@ -228,10 +254,8 @@ export default function ProductPage() {
 
           {/* RIGHT: Info (Title → Price → Buy → Description) */}
           <div className="flex flex-col">
-            {/* Title */}
             <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 leading-tight">{product.title}</h1>
 
-            {/* Price */}
             <div className="mt-3 flex items-center gap-3">
               <div className="text-3xl font-bold text-indigo-600">৳ {priceDisplay(product.price)}</div>
               {product.regularPrice && (
@@ -239,7 +263,6 @@ export default function ProductPage() {
               )}
             </div>
 
-            {/* Buy button */}
             <div className="mt-5">
               <button
                 onClick={() => setShowOrder(true)}
@@ -249,13 +272,11 @@ export default function ProductPage() {
               </button>
             </div>
 
-            {/* Description */}
             <div className="mt-6 text-gray-700 text-sm md:text-base leading-relaxed">
               <h3 className="font-semibold text-lg mb-2">বিস্তারিত</h3>
               <p className="whitespace-pre-line">{product.description}</p>
             </div>
 
-            {/* Delivery + meta */}
             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7"/><path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M16 3l-4 4-4-4"/></svg>

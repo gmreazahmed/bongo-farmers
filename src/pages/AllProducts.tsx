@@ -13,6 +13,7 @@ type Product = {
   regularPrice?: number;
   images: string[];
   category?: string;
+  slug?: string;
 };
 
 export default function AllProducts() {
@@ -44,11 +45,13 @@ export default function AllProducts() {
             regularPrice: data.regularPrice ? Number(data.regularPrice) : undefined,
             images: Array.isArray(data.images) ? data.images : data.images ? [data.images] : [],
             category: data.category,
+            slug: data.slug || undefined,
           };
         });
 
         const map = new Map<string, Product>();
-        LOCAL_PRODUCTS.forEach((p) => map.set(p.id, p));
+        // keep local, but allow firebase to override by id
+        LOCAL_PRODUCTS.forEach((p: any) => map.set(p.id, { ...p }));
         firebaseProducts.forEach((p) => map.set(p.id, p));
         const finalList = Array.from(map.values());
 
@@ -57,7 +60,7 @@ export default function AllProducts() {
       } catch (err) {
         console.error(err);
         setError("Firebase থেকে পণ্য আনা যায়নি — লোকাল পণ্য দেখানো হচ্ছে।");
-        setProducts(LOCAL_PRODUCTS);
+        setProducts(LOCAL_PRODUCTS as any);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -97,7 +100,6 @@ export default function AllProducts() {
 
     if (sort === "price-asc") list.sort((a, b) => (a.price || 0) - (b.price || 0));
     if (sort === "price-desc") list.sort((a, b) => (b.price || 0) - (a.price || 0));
-    // latest is original order from server/local
     return list;
   }, [products, queryText, activeCategory, sort]);
 
@@ -180,7 +182,7 @@ export default function AllProducts() {
                       className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col border hover:shadow-xl transition"
                     >
                       <div className="relative">
-                        <Link to={`/product/${p.id}`} className="block">
+                        <Link to={`/product/${p.slug ?? p.id}`} className="block">
                           <div className="w-full h-48 bg-gray-100 overflow-hidden">
                             <img
                               src={p.images?.[0] || "/placeholder.png"}
@@ -209,7 +211,7 @@ export default function AllProducts() {
                         <div className="mt-4 flex items-center justify-between">
                           <div className="text-sm text-gray-600">{p.category ?? ""}</div>
                           <Link
-                            to={`/product/${p.id}`}
+                            to={`/product/${p.slug ?? p.id}`}
                             className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700"
                             aria-label={`View ${p.title}`}
                           >
