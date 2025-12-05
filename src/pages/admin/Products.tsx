@@ -41,11 +41,13 @@ function toCsv(rows: Product[]) {
   return [header, ...lines].join("\n");
 }
 
-function slugify(s: string) {
+function slugify(s = "") {
   return s
     .toString()
     .trim()
     .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, "-")
     .replace(/[^\w\-]+/g, "")
     .replace(/\-\-+/g, "-")
@@ -170,8 +172,7 @@ export default function AdminProducts() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  // Edit modal helpers
-
+  // Edit modal helpers (robust parsing)
   function openEdit(p: Product) {
     setEditing({
       id: p.id,
@@ -286,27 +287,36 @@ export default function AdminProducts() {
     return filtered.slice(start, start + perPage);
   }, [filtered, page, perPage]);
 
+  const fmtPrice = (n?: number) => Number(n || 0).toLocaleString();
+
   return (
     <div>
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+      {/* header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800">Products</h2>
+          <h2 className="text-2xl font-semibold text-gray-800">Products</h2>
           <p className="text-sm text-gray-500 mt-1">Manage store products — add / edit / delete</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3">
           <Link
             to="/admin/add-product"
-            className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm shadow"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-sm shadow"
           >
             ➕ Add Product
           </Link>
 
-          <button onClick={exportCsv} className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm shadow">
+          <button
+            onClick={exportCsv}
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm shadow"
+          >
             Export CSV
           </button>
 
-          <button onClick={bulkDelete} className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm shadow">
+          <button
+            onClick={bulkDelete}
+            className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm shadow"
+          >
             Delete Selected
           </button>
 
@@ -331,26 +341,32 @@ export default function AdminProducts() {
       </div>
 
       {/* filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center mb-4">
-        <div className="flex items-center gap-2 bg-white border rounded px-3 py-2">
-          <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <div className="flex flex-col sm:flex-row gap-3 items-center mb-6">
+        <div className="flex items-center gap-2 bg-white border rounded px-3 py-2 shadow-sm w-full sm:w-auto">
+          <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
             <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
           </svg>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title or description" className="outline-none text-sm" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search title or description"
+            className="outline-none text-sm w-full"
+            aria-label="Search products"
+          />
           {q && (
-            <button onClick={() => setQ("")} className="text-sm text-gray-400">
+            <button onClick={() => setQ("")} className="text-sm text-gray-400" aria-label="Clear search">
               ✕
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={() => setCategoryFilter(null)} className={`px-3 py-1 text-sm rounded ${!categoryFilter ? "bg-blue-600 text-white" : "bg-white border"}`}>All</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => setCategoryFilter(null)} className={`px-3 py-1 text-sm rounded ${!categoryFilter ? "bg-indigo-600 text-white" : "bg-white border"}`}>All</button>
           {categories.map((c) => (
             <button
               key={c}
               onClick={() => setCategoryFilter((s: string | null) => (s === c ? null : c))}
-              className={`px-3 py-1 text-sm rounded ${categoryFilter === c ? "bg-blue-600 text-white" : "bg-white border"}`}
+              className={`px-3 py-1 text-sm rounded ${categoryFilter === c ? "bg-indigo-600 text-white" : "bg-white border"}`}
             >
               {c}
             </button>
@@ -362,9 +378,9 @@ export default function AdminProducts() {
       {loading ? (
         <div className="p-8 text-center text-gray-500">Loading...</div>
       ) : viewMode === "grid" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {pageItems.map((p) => (
-            <div key={p.id} className="bg-white rounded-lg shadow p-3 flex flex-col">
+            <div key={p.id} className="bg-white rounded-lg shadow p-3 flex flex-col hover:shadow-lg transition">
               <div className="h-40 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
                 <img src={(p.images && p.images[0]) || "/placeholder.png"} alt={p.title} className="w-full h-full object-cover" />
               </div>
@@ -381,8 +397,8 @@ export default function AdminProducts() {
 
                 <div className="mt-3 flex items-center justify-between">
                   <div>
-                    <div className="text-lg font-bold text-gray-900">৳ {Number(p.price || 0).toLocaleString()}</div>
-                    {p.regularPrice ? <div className="text-xs text-gray-400 line-through">৳ {Number(p.regularPrice).toLocaleString()}</div> : null}
+                    <div className="text-lg font-bold text-gray-900">৳ {fmtPrice(p.price)}</div>
+                    {p.regularPrice ? <div className="text-xs text-gray-400 line-through">৳ {fmtPrice(p.regularPrice)}</div> : null}
                   </div>
 
                   <div className="flex flex-col items-end gap-2">
@@ -390,7 +406,7 @@ export default function AdminProducts() {
                       <button onClick={() => openEdit(p)} className="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm">Edit</button>
                       <button onClick={() => deleteProduct(p.id)} className="px-3 py-1 bg-red-600 text-white rounded text-sm">Delete</button>
                     </div>
-                    <Link to={`/product/${p.slug ?? p.id}`} className="text-xs text-blue-600">View on site →</Link>
+                    <Link to={`/product/${p.slug ?? p.id}`} className="text-xs text-indigo-600 hover:underline">View on site →</Link>
                   </div>
                 </div>
               </div>
@@ -399,7 +415,7 @@ export default function AdminProducts() {
         </div>
       ) : (
         <div className="overflow-x-auto bg-white rounded-lg shadow">
-          <table className="min-w-full text-sm">
+          <table className="min-w-full text-sm divide-y">
             <thead className="bg-gray-50">
               <tr className="text-left">
                 <th className="p-3 w-12">
@@ -411,6 +427,7 @@ export default function AdminProducts() {
                       pageItems.forEach((pi) => (obj[pi.id] = checked));
                       setSelected((s) => ({ ...s, ...obj }));
                     }}
+                    aria-label="Select page items"
                   />
                 </th>
                 <th className="p-3">Title</th>
@@ -419,15 +436,15 @@ export default function AdminProducts() {
                 <th className="p-3 w-40 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="bg-white">
               {pageItems.map((p) => (
-                <tr key={p.id} className="border-t hover:bg-gray-50">
-                  <td className="p-3"><input type="checkbox" checked={!!selected[p.id]} onChange={() => toggleSelect(p.id)} /></td>
+                <tr key={p.id} className="hover:bg-gray-50">
+                  <td className="p-3"><input type="checkbox" checked={!!selected[p.id]} onChange={() => toggleSelect(p.id)} aria-label={`select ${p.title}`} /></td>
                   <td className="p-3">
                     <div className="font-medium">{p.title}</div>
                     <div className="text-xs text-gray-400 mt-1 line-clamp-1">{p.images && p.images[0]}</div>
                   </td>
-                  <td className="p-3">৳ {Number(p.price || 0).toLocaleString()}</td>
+                  <td className="p-3">৳ {fmtPrice(p.price)}</td>
                   <td className="p-3">{p.category || "-"}</td>
                   <td className="p-3 text-right">
                     <div className="inline-flex gap-2">
@@ -446,7 +463,7 @@ export default function AdminProducts() {
       )}
 
       {/* pagination */}
-      <div className="mt-4 flex items-center justify-between">
+      <div className="mt-6 flex items-center justify-between">
         <div className="text-sm text-gray-500">Showing {filtered.length === 0 ? 0 : (page - 1) * perPage + 1} - {Math.min(filtered.length, page * perPage)} of {filtered.length}</div>
         <div className="flex items-center gap-2">
           <button onClick={() => setPage((p) => Math.max(1, p - 1))} className="px-3 py-1 bg-white border rounded disabled:opacity-50" disabled={page === 1}>Prev</button>
@@ -461,7 +478,7 @@ export default function AdminProducts() {
           <div className="bg-white w-full max-w-4xl rounded-lg shadow-lg p-5">
             <div className="flex items-start justify-between gap-4">
               <h3 className="text-lg font-semibold">Edit Product</h3>
-              <button onClick={() => setEditing(null)} className="text-gray-500 hover:text-gray-800">✕</button>
+              <button onClick={() => setEditing(null)} className="text-gray-500 hover:text-gray-800" aria-label="Close edit">✕</button>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -494,12 +511,13 @@ export default function AdminProducts() {
                         }
                       }
                     }}
+                    aria-label="Add image URL"
                   />
                 </div>
 
                 <div className="mt-3">
                   <label className="block text-xs text-gray-600">Or upload files (local preview)</label>
-                  <input type="file" multiple accept="image/*" onChange={handleImageFiles} className="mt-2" />
+                  <input type="file" multiple accept="image/*" onChange={handleImageFiles} className="mt-2" aria-label="Upload images" />
                   <p className="text-xs text-gray-400 mt-2">Note: uploaded files are only locally previewed. Integrate storage upload to persist files.</p>
                 </div>
               </div>
@@ -556,7 +574,7 @@ export default function AdminProducts() {
 
                   <div className="flex items-center justify-end gap-2 mt-2">
                     <button onClick={() => setEditing(null)} className="px-4 py-2 border rounded text-sm">Cancel</button>
-                    <button onClick={saveEdit} disabled={saving} className={`px-4 py-2 rounded text-sm ${saving ? "bg-blue-300 text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`}>
+                    <button onClick={saveEdit} disabled={saving} className={`px-4 py-2 rounded text-sm ${saving ? "bg-indigo-300 text-white" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}>
                       {saving ? "Saving..." : "Save changes"}
                     </button>
                   </div>

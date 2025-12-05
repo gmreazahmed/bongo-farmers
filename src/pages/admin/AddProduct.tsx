@@ -9,10 +9,10 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../../firebase/firebase";
+import toast from "react-hot-toast";
 
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
-// optional site URL for preview (set VITE_PUBLIC_SITE_URL=https://yourdomain.com)
 const SITE_BASE = (import.meta.env.VITE_PUBLIC_SITE_URL as string) || (typeof window !== "undefined" ? window.location.origin : "");
 
 type ProductPayload = {
@@ -25,8 +25,7 @@ type ProductPayload = {
   slug?: string;
 };
 
-/* ---------- Helpers ---------- */
-function slugify(s: string) {
+function slugify(s = "") {
   return s
     .toString()
     .trim()
@@ -47,12 +46,10 @@ async function checkSlugExists(slug: string) {
     return !snap.empty;
   } catch (err) {
     console.error("checkSlugExists error:", err);
-    // assume taken on error to be safe
     return true;
   }
 }
 
-/* Cloudinary unsigned uploader (XHR for progress) */
 async function uploadToCloudinary(file: File, onProgress?: (pct: number) => void): Promise<string> {
   if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
     throw new Error("Cloudinary not configured. Set VITE_CLOUDINARY_CLOUD_NAME & VITE_CLOUDINARY_UPLOAD_PRESET");
@@ -90,9 +87,7 @@ async function uploadToCloudinary(file: File, onProgress?: (pct: number) => void
   });
 }
 
-/* ---------- Component ---------- */
 export default function AddProduct() {
-  // form
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
@@ -101,18 +96,15 @@ export default function AddProduct() {
   const [images, setImages] = useState<string>(""); // comma-separated
   const [busy, setBusy] = useState(false);
 
-  // file upload UI
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 
-  // slug checking UI
   const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "taken" | "error">("idle");
   const slugCheckTimer = useRef<number | null>(null);
   const slugCheckCounter = useRef(0);
 
-  // notice
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -121,22 +113,18 @@ export default function AddProduct() {
     return () => urls.forEach((u) => URL.revokeObjectURL(u));
   }, [files]);
 
-  // Debounced slug availability check (real-time)
   useEffect(() => {
     if (!slug) {
       setSlugStatus("idle");
       return;
     }
-
     setSlugStatus("checking");
     setNotice(null);
-    // debounce 600ms
     if (slugCheckTimer.current) window.clearTimeout(slugCheckTimer.current);
     const current = ++slugCheckCounter.current;
     slugCheckTimer.current = window.setTimeout(async () => {
       try {
         const exists = await checkSlugExists(slug);
-        // ensure latest input
         if (current !== slugCheckCounter.current) return;
         setSlugStatus(exists ? "taken" : "available");
       } catch (err) {
@@ -150,7 +138,6 @@ export default function AddProduct() {
     };
   }, [slug]);
 
-  // handle file selection (append, dedupe by name+size)
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files ? Array.from(e.target.files) : [];
     if (selected.length === 0) return;
@@ -160,6 +147,18 @@ export default function AddProduct() {
       return [...prev, ...toAdd].slice(0, 8);
     });
     setNotice(null);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const dt = e.dataTransfer;
+    const items = Array.from(dt.files || []);
+    if (!items.length) return;
+    setFiles((prev) => {
+      const existing = new Set(prev.map((f) => `${f.name}-${f.size}`));
+      const toAdd = items.filter((f) => !existing.has(`${f.name}-${f.size}`));
+      return [...prev, ...toAdd].slice(0, 8);
+    });
   }
 
   function removePreviewAt(i: number) {
@@ -191,16 +190,17 @@ export default function AddProduct() {
       setFiles([]);
       setPreviews([]);
       setNotice("ছবি আপলোড হয়েছে এবং লিংক ইনপুটে যোগ করা হয়েছে।");
+      toast.success("Images uploaded");
     } catch (err) {
       console.error(err);
       setNotice("Upload failed — কনসোলে দেখুন।");
+      toast.error("Upload failed");
     } finally {
       setUploading(false);
       setTimeout(() => setUploadProgress({}), 800);
     }
   }
 
-  // Auto-suggest a slug from title and ensure uniqueness by trying suffixes
   async function handleSuggestSlug() {
     const base = slugify(title || "product");
     if (!base) {
@@ -217,11 +217,10 @@ export default function AddProduct() {
         if (!exists) {
           setSlug(candidate);
           setSlugStatus("available");
-          setNotice("Suggested slug তৈরি করা হয়েছে। আপনি প্রয়োজনমত পরিবর্তন করতে পারেন।");
+          setNotice("Suggested slug তৈরি করা হয়েছে।");
           return;
         }
         attempt++;
-        // try base-1, base-2, ...
         candidate = `${base}-${attempt}`;
         if (attempt > 12) {
           candidate = `${base}-${Date.now().toString(36).slice(-6)}`;
@@ -262,7 +261,6 @@ export default function AddProduct() {
 
     setBusy(true);
     try {
-      // double-check on submit to avoid race
       const exists = await checkSlugExists(slug.trim());
       if (exists) {
         setSlugStatus("taken");
@@ -283,7 +281,8 @@ export default function AddProduct() {
 
       await addDoc(collection(db, "products"), payload);
       setNotice("Product তৈরি হয়েছে।");
-      // reset
+      toast.success("Product created");
+
       setTitle("");
       setSlug("");
       setDescription("");
@@ -296,18 +295,19 @@ export default function AddProduct() {
     } catch (err) {
       console.error(err);
       setNotice("Product তৈরি ব্যর্থ।");
+      toast.error("Create failed");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-semibold mb-4">Add Product — Manual slug + Live check</h2>
+    <div className="max-w-5xl mx-auto px-4 py-8">
+      <h2 className="text-2xl font-semibold mb-4">Add Product</h2>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: preview + tips */}
-        <div className="lg:col-span-1 space-y-4">
+        {/* LEFT: preview & tips */}
+        <div className="space-y-4">
           <div className="rounded-lg border border-dashed border-gray-200 p-4 flex flex-col items-center bg-gray-50">
             <div className="w-36 h-36 rounded-lg overflow-hidden bg-white shadow-sm flex items-center justify-center">
               {previews[0] ? (
@@ -315,7 +315,7 @@ export default function AddProduct() {
               ) : images.split(",").find(Boolean) ? (
                 <img src={images.split(",").find(Boolean)} alt="first" className="w-full h-full object-cover" />
               ) : (
-                <svg className="w-14 h-14 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-14 h-14 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden>
                   <path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4" />
                 </svg>
               )}
@@ -333,11 +333,12 @@ export default function AddProduct() {
                 onChange={(e) => setImages(e.target.value)}
                 placeholder="https://.../img1.jpg, https://.../img2.jpg"
                 className="w-full border rounded px-3 py-2 text-sm"
+                aria-label="Manual image URLs"
               />
             </div>
 
             <div className="mt-3 w-full text-xs text-gray-500">
-              <div>Cloudinary: <span className="font-medium">{CLOUDINARY_CLOUD_NAME || "—"}</span></div>
+              <div>Cloudinary: <span className="font-medium">{CLOUDINARY_CLOUD_NAME || "— not configured"}</span></div>
               <div className="mt-1">Upload images below or paste external URLs</div>
             </div>
           </div>
@@ -352,60 +353,60 @@ export default function AddProduct() {
           </div>
         </div>
 
-        {/* Right: form */}
+        {/* RIGHT: form */}
         <div className="lg:col-span-2">
           <form onSubmit={submit} className="space-y-4">
-            {/* Title & slug row */}
-            <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-start">
-              <div className="md:col-span-5">
-                <label className="block text-sm font-medium mb-1">Title</label>
+            {/* Title (full width) */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Title</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Product title"
+                className="w-full border rounded px-3 py-2"
+                aria-label="Product title"
+              />
+            </div>
+
+            {/* Slug moved BELOW title (full width) */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Slug (URL)</label>
+              <div className="flex gap-2">
                 <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Product title"
-                  className="w-full border rounded px-3 py-2"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value)}
+                  placeholder="e.g. smart-led-light"
+                  className="flex-1 border rounded px-3 py-2 text-sm"
+                  aria-label="Product slug"
                 />
+                <button
+                  type="button"
+                  onClick={handleSuggestSlug}
+                  disabled={!title || busy}
+                  className="px-3 py-2 bg-gray-100 border rounded text-sm hover:bg-gray-200 disabled:opacity-60"
+                >
+                  Suggest
+                </button>
               </div>
 
-              <div className="md:col-span-3">
-                <label className="block text-sm font-medium mb-1">Slug (URL)</label>
-                <div className="flex gap-2">
-                  <input
-                    value={slug}
-                    onChange={(e) => setSlug(e.target.value)}
-                    placeholder="e.g. smart-led-light"
-                    className="flex-1 border rounded px-3 py-2 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSuggestSlug}
-                    className="px-3 py-2 bg-gray-100 border rounded text-sm hover:bg-gray-200"
-                  >
-                    Suggest
-                  </button>
+              <div className="mt-2 flex items-center gap-3">
+                <div className="text-xs">
+                  <span className="text-gray-500">Preview:</span>{" "}
+                  <a className="text-sm text-indigo-600 truncate block max-w-[240px]" href={slug ? `${SITE_BASE}/product/${slug}` : "#"} target="_blank" rel="noreferrer">
+                    {slug ? `${SITE_BASE}/product/${slug}` : `${SITE_BASE}/product/your-slug`}
+                  </a>
                 </div>
 
-                {/* slug status + preview */}
-                <div className="mt-2 flex items-center gap-3">
-                  <div className="text-xs">
-                    <span className="text-gray-500">Preview:</span>{" "}
-                    <a className="text-sm text-indigo-600 truncate block max-w-[240px]" href={slug ? `${SITE_BASE}/product/${slug}` : "#"} target="_blank" rel="noreferrer">
-                      {slug ? `${SITE_BASE}/product/${slug}` : `${SITE_BASE}/product/your-slug`}
-                    </a>
-                  </div>
-
-                  <div className="ml-auto">
-                    {slugStatus === "idle" && <span className="text-xs text-gray-500">—</span>}
-                    {slugStatus === "checking" && <span className="text-xs text-yellow-600">Checking…</span>}
-                    {slugStatus === "available" && <span className="text-xs text-green-600 font-medium">Available ✓</span>}
-                    {slugStatus === "taken" && <span className="text-xs text-red-600 font-medium">Taken ✕</span>}
-                    {slugStatus === "error" && <span className="text-xs text-amber-600">Error</span>}
-                  </div>
+                <div className="ml-auto">
+                  {slugStatus === "idle" && <span className="text-xs text-gray-500">—</span>}
+                  {slugStatus === "checking" && <span className="text-xs text-yellow-600">Checking…</span>}
+                  {slugStatus === "available" && <span className="text-xs text-green-600 font-medium">Available ✓</span>}
+                  {slugStatus === "taken" && <span className="text-xs text-red-600 font-medium">Taken ✕</span>}
+                  {slugStatus === "error" && <span className="text-xs text-amber-600">Error</span>}
                 </div>
               </div>
             </div>
 
-            {/* prices */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm font-medium mb-1">Price (৳)</label>
@@ -443,8 +444,12 @@ export default function AddProduct() {
               />
             </div>
 
-            {/* Upload UI */}
-            <div className="rounded-lg border p-3 bg-white">
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              className="rounded-lg border p-3 bg-white"
+              aria-label="Upload images area"
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-medium">Upload images</div>
@@ -463,9 +468,9 @@ export default function AddProduct() {
                 {previews.length === 0 ? (
                   <div className="w-full h-28 bg-gray-50 border rounded-md flex items-center justify-center text-gray-400">No images selected</div>
                 ) : (
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {previews.map((p, i) => (
-                      <div key={p} className="relative w-full h-24 bg-gray-100 rounded overflow-hidden border">
+                      <div key={p} className="relative w-full h-28 bg-gray-100 rounded overflow-hidden border">
                         <img src={p} alt={`preview-${i}`} className="w-full h-full object-cover" />
                         <div className="absolute left-1 top-1 text-xs bg-white/90 px-1 rounded max-w-[70%] truncate">{files[i]?.name}</div>
                         <button type="button" onClick={() => removePreviewAt(i)} className="absolute top-1 right-1 bg-white/80 text-xs rounded px-1 py-0.5">✕</button>
@@ -489,15 +494,14 @@ export default function AddProduct() {
               )}
 
               <div className="mt-3 flex gap-2 items-center">
-                <button type="button" onClick={uploadSelectedFiles} disabled={files.length === 0 || uploading} className="px-4 py-2 bg-green-600 text-white rounded">
+                <button type="button" onClick={uploadSelectedFiles} disabled={files.length === 0 || uploading} className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-60">
                   {uploading ? "Uploading..." : "Upload selected images"}
                 </button>
                 <button type="button" onClick={() => { setFiles([]); setPreviews([]); }} className="px-4 py-2 border rounded">Clear</button>
-                <div className="ml-auto text-sm text-gray-500">PNG/JPG supported • Drag files to upload</div>
+                <div className="ml-auto text-sm text-gray-500">PNG/JPG supported • Max 8 files</div>
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex gap-2 w-full sm:w-auto">
                 <button disabled={busy} type="submit" className="px-5 py-2 bg-indigo-600 text-white rounded-lg shadow w-full sm:w-auto">
