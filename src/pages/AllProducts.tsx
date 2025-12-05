@@ -33,8 +33,8 @@ export default function AllProducts() {
     async function load() {
       setLoading(true);
       try {
-        const q = query(collection(db, "products"), orderBy("createdAt", "desc"), limit(200));
-        const snap = await getDocs(q);
+        const qref = query(collection(db, "products"), orderBy("createdAt", "desc"), limit(200));
+        const snap = await getDocs(qref);
         const firebaseProducts: Product[] = snap.docs.map((d) => {
           const data = d.data() as any;
           return {
@@ -127,7 +127,7 @@ export default function AllProducts() {
                 className="w-full sm:w-64 pl-10 pr-3 py-2 rounded-lg border bg-white shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 aria-label="Search products"
               />
-              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                 <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
               </svg>
             </div>
@@ -153,9 +153,8 @@ export default function AllProducts() {
             <button
               key={c}
               onClick={() => { setActiveCategory(c as any); setVisibleCount(12); }}
-              className={`text-sm px-3 py-1.5 rounded-full border transition ${
-                activeCategory === c ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-              }`}
+              className={`text-sm px-3 py-1.5 rounded-full border transition ${activeCategory === c ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+              aria-pressed={activeCategory === c}
             >
               {c === "all" ? "All" : c}
             </button>
@@ -179,45 +178,54 @@ export default function AllProducts() {
                   {shown.map((p) => (
                     <article
                       key={p.id}
-                      className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col border hover:shadow-xl transition"
+                      className="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col border hover:shadow-xl transition group"
                     >
-                      <div className="relative">
-                        <Link to={`/product/${p.slug ?? p.id}`} className="block">
-                          <div className="w-full h-48 bg-gray-100 overflow-hidden">
-                            <img
-                              src={p.images?.[0] || "/placeholder.png"}
-                              alt={p.title}
-                              className="w-full h-full object-cover transform hover:scale-105 transition duration-300"
-                              loading="lazy"
-                            />
+                      {/* Make main content clickable */}
+                      <div className="flex-1">
+                        <Link
+                          to={`/product/${p.slug ?? p.id}`}
+                          state={{ product: p }}
+                          className="block focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                          aria-label={`View ${p.title}`}
+                        >
+                          <div className="relative">
+                            <div className="w-full h-48 bg-gray-100 overflow-hidden">
+                              <img
+                                src={p.images?.[0] || "/placeholder.png"}
+                                alt={p.title}
+                                className="w-full h-full object-cover transform transition duration-300 group-hover:scale-105"
+                                loading="lazy"
+                              />
+                            </div>
+
+                            <div className="absolute left-3 top-3 bg-white/95 px-3 py-1 rounded-full text-sm font-semibold text-indigo-700 shadow">
+                              ৳ {Number(p.price).toLocaleString()}
+                            </div>
+
+                            {p.regularPrice && (
+                              <div className="absolute right-3 top-3 bg-white/95 px-2 py-0.5 rounded text-xs text-gray-400 line-through">
+                                ৳ {Number(p.regularPrice).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="p-4">
+                            <h3 className="text-base font-semibold text-gray-800 line-clamp-2">{p.title}</h3>
+                            <p className="text-xs text-gray-500 mt-2 line-clamp-3">{p.description}</p>
                           </div>
                         </Link>
-
-                        <div className="absolute left-3 top-3 bg-white/95 px-3 py-1 rounded-full text-sm font-semibold text-indigo-700 shadow">
-                          ৳ {Number(p.price).toLocaleString()}
-                        </div>
-
-                        {p.regularPrice && (
-                          <div className="absolute right-3 top-3 bg-white/95 px-2 py-0.5 rounded text-xs text-gray-400 line-through">
-                            ৳ {Number(p.regularPrice).toLocaleString()}
-                          </div>
-                        )}
                       </div>
 
-                      <div className="p-4 flex-1 flex flex-col">
-                        <h3 className="text-base font-semibold text-gray-800 line-clamp-2">{p.title}</h3>
-                        <p className="text-xs text-gray-500 mt-2 line-clamp-3 flex-1">{p.description}</p>
-
-                        <div className="mt-4 flex items-center justify-between">
-                          <div className="text-sm text-gray-600">{p.category ?? ""}</div>
-                          <Link
-                            to={`/product/${p.slug ?? p.id}`}
-                            className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700"
-                            aria-label={`View ${p.title}`}
-                          >
-                            View
-                          </Link>
-                        </div>
+                      <div className="px-4 pb-4 pt-0 flex items-center justify-between">
+                        <div className="text-sm text-gray-600">{p.category ?? ""}</div>
+                        <Link
+                          to={`/product/${p.slug ?? p.id}`}
+                          state={{ product: p }}
+                          className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-indigo-600 text-white rounded-lg shadow hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                          aria-label={`View ${p.title}`}
+                        >
+                          View
+                        </Link>
                       </div>
                     </article>
                   ))}

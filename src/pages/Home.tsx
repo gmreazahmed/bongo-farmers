@@ -67,15 +67,19 @@ function excerpt(s?: string, n = 110) {
 }
 
 export default function Home() {
-  // product controls (search/filter live in products section)
+  // controls
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"featured" | "price-asc" | "price-desc">("featured");
   const [category, setCategory] = useState<string | "all">("all");
   const [showFilterMobile, setShowFilterMobile] = useState(false);
 
+  // data
   const [products, setProducts] = useState<Product[]>(LOCAL_PRODUCTS as Product[]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // load more
+  const [visible, setVisible] = useState(12);
 
   useEffect(() => {
     let mounted = true;
@@ -136,27 +140,31 @@ export default function Home() {
     return list;
   }, [products, query, sort, category]);
 
+  // slice visible items
+  const visibleItems = filtered.slice(0, visible);
+  const canLoadMore = visible < filtered.length;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
       {/* HERO */}
       <header className="relative overflow-hidden">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center gap-3 bg-gradient-to-r from-blue-50 to-white px-3 py-1 rounded-full text-sm text-blue-700 w-max shadow-sm">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <div className="inline-flex items-center gap-3 bg-gradient-to-r from-green-50 to-white px-3 py-1 rounded-full text-sm text-green-700 w-max shadow-sm">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                 <path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M12 2v6" />
                 <path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M5 11h14" />
                 <path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M12 22v-6" />
               </svg>
-              জনপ্রিয় — ট্রাস্টেড গ্যাজেট
+              গ্রাম বাংলার ঐতিহ্যবাহী পণ্য
             </div>
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight text-gray-900">
-              স্মার্ট হোমের উন্নত্‌ অভিজ্ঞতা — <span className="text-indigo-600">কম খরচে</span>
+              Bongo Farmers — <span className="text-indigo-600">সরাসরি কৃষকের থেকে</span>
             </h1>
 
             <p className="text-gray-600 max-w-2xl">
-              শক্তি সাশ্রয়ী ডিভাইস, নিরাপদ কনফিগারেশন এবং ব্যবহার বান্ধব ইন্টারফেস — আপনার ঘরকে করে তুলুন স্মার্ট, সহজ ও আরামদায়ক।
+              বঙ্গ ফারমার্স থেকে পেয়ে যান সতেজ, মানসম্পন্ন এবং সরাসরি সংগ্রহ করা খাদ্য ও পণ্য। আমরা গুণমানকে সর্বাগ্রে রাখি — আপনার ঘরে পৌঁছে দেই দ্রুত।
             </p>
 
             <div className="flex flex-wrap gap-3 items-center">
@@ -170,7 +178,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="lg:col-span-5 flex justify-end">
+          <div className="lg:col-span-5 flex justify-center lg:justify-end">
             <div className="rounded-2xl overflow-hidden shadow-2xl w-full max-w-md transform hover:scale-[1.01] transition">
               <img src={heroImg} alt="hero" className="w-full h-48 sm:h-64 md:h-80 object-cover" loading="lazy" />
               <div className="p-4 bg-gradient-to-t from-black/30 to-transparent text-white">
@@ -182,7 +190,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* show fetch error if any (outside effect) */}
+      {/* fetch error */}
       {error && (
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 text-yellow-700 rounded">
@@ -205,23 +213,26 @@ export default function Home() {
             <button
               onClick={() => setShowFilterMobile((s) => !s)}
               className="inline-flex items-center gap-2 px-3 py-2 bg-white border rounded-lg text-sm shadow-sm md:hidden"
+              aria-expanded={showFilterMobile}
             >
               Filters
-              <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg className="w-4 h-4 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                 <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M3 4h18M7 12h10M10 20h4" />
               </svg>
             </button>
 
             {/* search */}
             <div className="relative">
+              <label htmlFor="search" className="sr-only">Search products</label>
               <input
+                id="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="প্রোডাক্ট নাম/বর্ণনা দিয়ে সার্চ করুন..."
                 className="pl-10 pr-3 py-2 rounded-lg border bg-white shadow-sm w-56 sm:w-64 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
                 aria-label="Search products"
               />
-              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                 <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
               </svg>
             </div>
@@ -234,9 +245,8 @@ export default function Home() {
                   <button
                     key={c}
                     onClick={() => setCategory(c as any)}
-                    className={`text-sm px-3 py-1.5 rounded-full border transition ${
-                      category === c ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                    }`}
+                    className={`text-sm px-3 py-1.5 rounded-full border transition ${category === c ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"}`}
+                    aria-pressed={category === c}
                   >
                     {c === "all" ? "All" : c}
                   </button>
@@ -270,9 +280,7 @@ export default function Home() {
                       setCategory(c as any);
                       setShowFilterMobile(false);
                     }}
-                    className={`flex-shrink-0 text-sm px-3 py-1.5 rounded-full border ${
-                      category === c ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200"
-                    }`}
+                    className={`flex-shrink-0 text-sm px-3 py-1.5 rounded-full border ${category === c ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-700 border-gray-200"}`}
                   >
                     {c === "all" ? "All" : c}
                   </button>
@@ -293,13 +301,17 @@ export default function Home() {
 
         {/* product grid */}
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Loading products…</div>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-xl shadow-sm overflow-hidden animate-pulse h-64" />
+            ))}
+          </div>
         ) : (
           <>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {filtered.map((p) => (
-                <article key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden transition hover:shadow-md group">
-                  <Link to={`/product/${p.slug ?? p.id}`} state={{ product: p }} className="block">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+              {visibleItems.map((p) => (
+                <article key={p.id} className="bg-white rounded-xl shadow-sm overflow-hidden transition hover:shadow-lg group">
+                  <Link to={`/product/${p.slug ?? p.id}`} state={{ product: p }} className="block" aria-label={`View ${p.title}`}>
                     <div className="relative">
                       <div className="w-full h-44 sm:h-40 md:h-44 bg-gray-100 overflow-hidden">
                         <img
@@ -309,9 +321,16 @@ export default function Home() {
                           loading="lazy"
                         />
                       </div>
-                      <div className="absolute right-3 top-3 bg-white/90 px-3 py-1 rounded-full text-sm font-semibold text-indigo-700 shadow-sm">
+
+                      <div className="absolute left-3 top-3 bg-white/95 px-3 py-1 rounded-full text-sm font-semibold text-indigo-700 shadow">
                         ৳ {Number(p.price).toLocaleString()}
                       </div>
+
+                      {p.regularPrice && (
+                        <div className="absolute right-3 top-3 bg-white/95 px-2 py-0.5 rounded text-xs text-gray-400 line-through">
+                          ৳ {Number(p.regularPrice).toLocaleString()}
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-3">
@@ -319,7 +338,7 @@ export default function Home() {
                       <p className="text-xs text-gray-500 mt-2 line-clamp-3">{excerpt(p.description, 100)}</p>
 
                       <div className="mt-3 flex items-center justify-between">
-                        <div className="text-xs text-gray-500">{p.regularPrice ? <span className="line-through">৳ {Number(p.regularPrice).toLocaleString()}</span> : null}</div>
+                        <div className="text-xs text-gray-500">{p.category ?? ""}</div>
                         <div className="flex gap-2">
                           <Link to={`/product/${p.slug ?? p.id}`} state={{ product: p }} className="text-xs bg-indigo-600 text-white px-3 py-1 rounded-lg">View</Link>
                           <button className="text-xs px-3 py-1 border rounded-lg">Wishlist</button>
@@ -333,6 +352,24 @@ export default function Home() {
 
             {filtered.length === 0 && (
               <div className="text-center py-12 text-gray-500">কোনো পণ্য পাওয়া যায়নি।</div>
+            )}
+
+            {/* load more */}
+            {filtered.length > 0 && (
+              <div className="mt-8 text-center">
+                {canLoadMore ? (
+                  <button
+                    onClick={() => setVisible((v) => v + 12)}
+                    className="inline-flex items-center gap-2 px-6 py-2 bg-white border rounded-full shadow hover:shadow-md"
+                  >
+                    Load more
+                  </button>
+                ) : visible > 12 ? (
+                  <button onClick={() => setVisible(12)} className="inline-flex items-center gap-2 px-6 py-2 bg-white border rounded-full shadow hover:shadow-md">
+                    Show less
+                  </button>
+                ) : null}
+              </div>
             )}
           </>
         )}
